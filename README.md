@@ -3,14 +3,20 @@
 ## Backend untuk fitur:
 
 - Register & Login (JWT)
+- Login dengan Google (Google Identity Services → backend verify → app JWT)
 - Dashboard events (list events milik user)
 - Create event + invite code/link
-- Join event (wajib login)
-- Polling: tambah opsi + vote date/time & location (ditutup saat deadline)
-- Auto-finalize setelah deadline (server otomatis set FINAL saat detail event di-fetch)
+- Join event via code (wajib login)
+- Polling:
+  - tambah opsi date/time & location
+  - vote date/time & location
+  - polling ditutup otomatis saat lewat deadline
+- Auto-finalize setelah deadline (server set status FINAL saat event di-fetch)
 - Discussion/chat per event (wajib login)
-- Split Bill: **EVENLY** & **BY ITEM**, termasuk sisa pajak/service (remaining) dibagi rata
-- End event (owner)
+- Split Bill:
+  - **EVENLY** & **BY ITEM**
+  - support pajak/service: remaining dibagi rata → **no remaining balance** di final
+- Finalize / End event (owner only)
 
 ---
 
@@ -33,13 +39,7 @@
 
 ## Setup
 
-1. Install dependencies
-
-```bash
-npm install
-```
-
-2. Buat file .env
+1. Konfigurasi Environment (buat file .env)
    Copy dari .env.example:
 
 ```bash
@@ -47,6 +47,12 @@ cp .env.example .env
 ```
 
 Lalu edit nilai JWT_SECRET (wajib).
+
+2. Install dependencies
+
+```bash
+npm install
+```
 
 3. Jalankan server
 
@@ -59,7 +65,7 @@ API: http://localhost:3000
 
 Frontend (Live Server): http://localhost:5500
 
-Reset Database (opsional)
+Reset Database
 
 ```bash
 mongosh
@@ -88,7 +94,7 @@ Authorization: Bearer <JWT_TOKEN>
 
 Untuk request body JSON:
 
-```pgsql
+```makefile
 Content-Type: application/json
 ```
 
@@ -97,39 +103,43 @@ Content-Type: application/json
 A. Login
 
 1. Frontend panggil POST /api/auth/login
-
 2. Simpan token ke localStorage
+3. Untuk request berikutnya, kirim header Authorization: Bearer <token>
 
-B. Dashboard
+B. Login (Google)
+
+1. Frontend mendapatkan Google ID token (GIS)
+2. Frontend kirim ke backend POST /api/auth/google dengan body { credential }
+3. Backend balas token (JWT aplikasi) → simpan ke localStorage
+
+C. Dashboard
 
 - GET /api/events → tampilkan upcoming/past
 - Saran filter:
   --Upcoming: status POLLING / FINAL dan (kalau ada finalDateTime) finalDateTime >= sekarang
   --Past: status ENDED atau (kalau ada finalDateTime) finalDateTime < sekarang
 
-C. Create Event
+D. Create Event
 
 - POST /api/events → response mengembalikan code
 - Link shareable dibuat dari frontend:
   --detailevent.html?code=XXXXXX
 
-D. Detail Event
+E. Detail Event
 
 - Saat buka detailevent.html?code=XXXXXX:
 
 1. pastikan token ada (kalau tidak → redirect ke login)
-
 2. POST /api/events/:code/join (auto-join)
-
 3. GET /api/events/:code untuk render detail
 
-E. Real-time (tanpa websocket)
+F. Real-time (tanpa websocket)
 
 - Gunakan polling sederhana:
   --setInterval(() => GET /api/events/:code, 1500)
   untuk update votes, members, messages, bill.
 
-F. Deadline Voting & Auto-Finalize
+G. Deadline Voting & Auto-Finalize
 
 - Jika deadline sudah lewat:
   --endpoint vote / add options akan ditolak (polling closed)
@@ -137,13 +147,33 @@ F. Deadline Voting & Auto-Finalize
   -----status = FINAL
   -----finalDateTime dan finalLocation diambil dari vote tertinggi (kalau ada opsi)
 
-G. Split Bill Behavior
+H. Split Bill Behavior
 Split bill mendukung:
 
 - EVENLY: total bill dibagi rata ke semua attendee
 - BY ITEM: item di-assign ke member tertentu
   --Jika total bill > sum(items), sisa (pajak/service) otomatis dibagi rata ke semua attendee
   --Output final: tidak ada remaining balance (sum semua orang = total)
+
+## Endpoint Summary
+
+- Auth:
+  --POST /api/auth/register
+  --POST /api/auth/login
+  --POST /api/auth/google
+
+- Events:
+  --GET /api/events (dashboard)
+  --POST /api/events (create)
+  --GET /api/events/:code (detail, member-only)
+  --POST /api/events/:code/join (join via code)
+
+- Polling / Chat / Bill:
+  --Tergantung implementasi route di eventRoutes (vote/options/messages/bill)
+
+- Admin event:
+  --POST /api/events/:code/finalize (owner-only)
+  --POST /api/events/:code/end (owner-only, jika ada)
 
 ## Quick Testing (cURL)
 

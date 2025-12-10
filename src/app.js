@@ -19,8 +19,16 @@ function createServer() {
   app.use(morgan("dev"));
   app.use(express.json({ limit: "1mb" }));
 
-  const origin = process.env.CORS_ORIGIN || "*";
-  app.use(cors({ origin, credentials: false }));
+  const allowed = new Set(["http://localhost:5500", "http://127.0.0.1:5500"]);
+
+  app.use(
+    cors({
+      origin: (origin, cb) => {
+        if (!origin) return cb(null, true); // curl/postman
+        cb(null, allowed.has(origin));
+      },
+    })
+  );
 
   app.use(
     rateLimit({
